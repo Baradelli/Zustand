@@ -19,6 +19,7 @@ export function Player() {
   });
 
   useEffect(() => {
+    if (course) return;
     load();
   }, []);
 

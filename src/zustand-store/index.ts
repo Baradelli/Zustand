@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { api } from "../lib/axios";
 
 interface Course {
@@ -25,50 +26,61 @@ export interface PlayerState {
   load: () => Promise<void>;
 }
 
-export const useStore = create<PlayerState>((set, get) => {
-  return {
-    course: null,
-    currentModuleIndex: 0,
-    currentLessonIndex: 0,
-    isLoading: true,
+export const useStore = create(
+  persist<PlayerState>(
+    (set, get) => {
+      return {
+        course: null,
+        currentModuleIndex: 0,
+        currentLessonIndex: 0,
+        isLoading: true,
 
-    load: async () => {
-      set({ isLoading: true });
+        load: async () => {
+          set({ isLoading: true });
 
-      const { data } = await api.get("/courses/1");
+          const { data } = await api.get("/courses/1");
 
-      set({ course: data, isLoading: false });
+          set({ course: data, isLoading: false });
+        },
+
+        play: (moduleAndLessonIndex: [number, number]) => {
+          const [moduleIndex, lessonIndex] = moduleAndLessonIndex;
+
+          set({
+            currentModuleIndex: moduleIndex,
+            currentLessonIndex: lessonIndex,
+          });
+        },
+
+        next: () => {
+          const { currentModuleIndex, currentLessonIndex, course } = get();
+
+          const nextLessonIndex = currentLessonIndex + 1;
+          const nextLesson =
+            course?.modules[currentModuleIndex].lessons[nextLessonIndex];
+
+          if (nextLesson) {
+            set({ currentLessonIndex: nextLessonIndex });
+          } else {
+            const nextModuleIndex = currentModuleIndex + 1;
+            const nextModule = course?.modules[nextModuleIndex];
+
+            if (nextModule) {
+              set({
+                currentModuleIndex: nextModuleIndex,
+                currentLessonIndex: 0,
+              });
+            }
+          }
+        },
+      };
     },
-
-    play: (moduleAndLessonIndex: [number, number]) => {
-      const [moduleIndex, lessonIndex] = moduleAndLessonIndex;
-
-      set({
-        currentModuleIndex: moduleIndex,
-        currentLessonIndex: lessonIndex,
-      });
-    },
-
-    next: () => {
-      const { currentModuleIndex, currentLessonIndex, course } = get();
-
-      const nextLessonIndex = currentLessonIndex + 1;
-      const nextLesson =
-        course?.modules[currentModuleIndex].lessons[nextLessonIndex];
-
-      if (nextLesson) {
-        set({ currentLessonIndex: nextLessonIndex });
-      } else {
-        const nextModuleIndex = currentModuleIndex + 1;
-        const nextModule = course?.modules[nextModuleIndex];
-
-        if (nextModule) {
-          set({ currentModuleIndex: nextModuleIndex, currentLessonIndex: 0 });
-        }
-      }
-    },
-  };
-});
+    {
+      name: "help-desc",
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);
 
 export const useCurrentLesson = () => {
   return useStore((state) => {
